@@ -64,7 +64,7 @@ PARSER.add_argument("-q", metavar='<query>', dest='MY_QUERY', help="set query co
 PARSER.add_argument("-r", metavar='<range>', dest='MY_RANGE', default='1h', \
                     help="set query range")
 PARSER.add_argument("-o", metavar='<fmt>', default="csv", dest='OUT_FORMAT', \
-                    help="set query output (values: txt, csv)")
+                    help="set query output (values: txt, csv, json)")
 PARSER.add_argument("-d", metavar='<outdir>', default="/var/tmp/sumoquery", dest='OUTPUTDIR', \
                     help="set query output directory")
 PARSER.add_argument("-s", metavar='<sleeptime>', default=2, dest='SLEEPTIME', \
@@ -304,9 +304,13 @@ def write_query_output(header_output, query_target, query_number):
         print('SUMOQUERY.outputfile: {}'.format(output_target))
     logger.debug('SUMOQUERY.outputfile: {}'.format(output_target))
 
-    with open(output_target, "w") as file_object:
-        file_object.write(header_output + '\n' )
-        file_object.close()
+    if ARGS.OUT_FORMAT == 'json':
+        with open(output_target, "w") as file_object:
+            file_object.write(json.dumps(header_output))
+    else:
+        with open(output_target, "w") as file_object:
+            file_object.write(header_output + '\n' )
+            file_object.close()
 
 def tailor_queries(query_item, query_target):
     """
@@ -410,10 +414,13 @@ def run_sumo_query(apisession, query, time_params):
 def build_assembled_output(apisession, query_jobid, num_records, iterations):
     """
     This assembles the header and output, going through the iterations of the output
+    Can return a records list object if OUT_FORMAT == json
     """
-
+    
+    records = []
     if num_records == 0:
         assembled_output = 'NORECORDS'
+
     if num_records > 0:
         total_records = ''
         for my_counter in range(0, iterations, 1):
@@ -421,13 +428,20 @@ def build_assembled_output(apisession, query_jobid, num_records, iterations):
             my_offset = ( my_limit * my_counter )
 
             query_records = apisession.search_job_records(query_jobid, my_limit, my_offset)
+            # temp bugfix doing extra get
+            if len(query_records["records"]) > 0:
+                records.append(extract_record_list(query_records["records"]))
 
             header,header_list = build_header(query_records)
             output = build_body(query_records,header_list)
             total_records = total_records + output
-
-        assembled_output = EOL_SEP.join([ header , total_records ])
-
+        if ARGS.OUT_FORMAT == 'json':
+            assembled_output = records
+        else:
+            assembled_output = EOL_SEP.join([ header, total_records ])
+        
+        logger.debug('records: {}'.format(records))
+    
     return assembled_output
 
 def build_header(query_records):
@@ -458,6 +472,21 @@ def build_body(query_records, header_list):
     output = EOL_SEP.join(record_body_list)
 
     return output
+
+def extract_record_list(query_records):
+    """
+    extracts each map record from the list of map objects
+    output will be a list of records for example:
+    [{'map': {'_count': '13', '_sourcecategory': 'sourcehost_volume'}}]
+    [{'_count': '13', '_sourcecategory': 'sourcehost_volume'}]
+    """
+    record_list = list()
+    for record in query_records:
+        map_record = record["map"]
+        logger.debug('map: {}'.format(map_record))
+        record_list.append(map_record)
+
+    return record_list
 
 ### class ###
 class SumoApiClient():
