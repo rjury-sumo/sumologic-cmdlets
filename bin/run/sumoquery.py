@@ -19,10 +19,11 @@ Style:
     @license-url    http://www.gnu.org/licenses/gpl.html
 """
 
-__version__ = 1.40
+__version__ = 1.4
 __author__ = "Wayne Schmidt (wschmidt@sumologic.com)"
 
 ### beginning ###
+import logging
 import json
 import os
 import sys
@@ -37,6 +38,14 @@ from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 import pandas
 import boto3
+import datetime
+
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    datefmt='%Y-%m-%d %H:%M:%S')
+
+logger = logging.getLogger()
 
 sys.dont_write_bytecode = 1
 
@@ -48,9 +57,11 @@ run_query is a Sumo Logic cli cmdlet managing queries
 PARSER.add_argument("-a", metavar='<secret>', dest='MY_APIKEY', \
                     help="set query authkey (format: <key>:<secret>) ")
 PARSER.add_argument("-e", metavar='<endpoint>', dest='MY_ENDPOINT', \
-                    help="set query endpoint (format: <dep>) ")
+                    help="set query endpoint (format: <dep>) ", \
+                        default='us2')
 PARSER.add_argument("-t", metavar='<targetorg>', dest='MY_TARGET', \
-                    action='append', help="set query target  (format: <dep>_<orgid>) ")
+                    action='append', help="set query target  (format: <dep>_<orgid>) ", \
+                        default='abc_123456789')
 PARSER.add_argument("-q", metavar='<query>', dest='MY_QUERY', help="set query content")
 PARSER.add_argument("-r", metavar='<range>', dest='MY_RANGE', default='1h', \
                     help="set query range")
@@ -69,14 +80,22 @@ PARSER.add_argument("-p", default=False, action='store_true', \
 
 ARGS = PARSER.parse_args()
 
+if ARGS.VERBOSE>0:
+    logger.setLevel('INFO')
+
+if ARGS.VERBOSE>9:
+    logger.setLevel('DEBUG')
+
 OUTPUTBASE = ARGS.OUTPUTDIR
 os.makedirs(OUTPUTBASE, exist_ok=True)
+logger.debug('OUTPUTDIR: {}'.format(ARGS.OUTPUTDIR))
 
 PENDING = os.path.join( OUTPUTBASE, 'pending' )
 os.makedirs(PENDING, exist_ok=True)
 
 OUTPUTS = os.path.join( OUTPUTBASE, 'outputs' )
 os.makedirs(OUTPUTS, exist_ok=True)
+logger.debug('OUTPUTS: {}'.format(OUTPUTS))
 
 SEC_M = 1000
 MIN_S = 60
@@ -104,6 +123,8 @@ MY_SEP = CSV_SEP
 if ARGS.OUT_FORMAT == 'txt':
     MS_SEP = TAB_SEP
 
+logger.debug('OUT_FORMAT: {}'.format(ARGS.OUT_FORMAT))
+
 NOW_TIME = int(time.time()) * SEC_M
 
 TIME_TABLE = dict()
@@ -116,6 +137,7 @@ TIME_TABLE["w"] = TIME_TABLE["d"] * WEEK_D
 TIME_PARAMS = dict()
 
 TARGETS = ARGS.MY_TARGET
+logger.debug('TARGET: {}'.format(TARGETS))
 
 if ARGS.MY_APIKEY:
     (MY_APINAME, MY_APISECRET) = ARGS.MY_APIKEY.split(':')
@@ -123,6 +145,8 @@ if ARGS.MY_APIKEY:
     os.environ['SUMO_KEY'] = MY_APISECRET
 
     if "aws:ssm:" in ARGS.MY_APIKEY:
+        logger.info('Use SSM credentials...')
+
         VENDOR, METHOD, REGION, TOKENS = ARGS.MY_APIKEY.split(':')
         if ARGS.VERBOSE > 7:
             print('VENDOR: {}'.format(VENDOR))
@@ -151,6 +175,10 @@ try:
 
 except KeyError as myerror:
     print('Environment Variable Not Set :: {} '.format(myerror.args[0]))
+    logger.fatal('You must supply an ID, KEY and endpoint')
+    exit(1)
+
+logger.debug('endpoint: {}'.format(SUMO_END))
 
 ### beginning ###
 
@@ -160,7 +188,12 @@ def main():
     Once done, then issue the command required
     """
 
-    apisession = SumoApiClient(SUMO_UID, SUMO_KEY, SUMO_END)
+    try:
+        apisession = SumoApiClient(SUMO_UID, SUMO_KEY, SUMO_END)
+
+    except Exception as exception:
+        logger.fatal(exception)
+        raise
 
     if ARGS.CLEANUP:
         query_targets = os.listdir(PENDING)
@@ -186,6 +219,8 @@ def worker_task(inputs):
     workerpid = multiprocessing.current_process()
     if ARGS.VERBOSE > 5:
         print('SUMOQUERY.worker: {}'.format(workerpid))
+        logger.debug('SUMOQUERY.worker: {}'.format(workerpid))
+
         print('SUMOQUERY.worktarget: {}'.format(inputs))
 
     query_targets = list()
@@ -330,6 +365,7 @@ def collect_queries():
                         query_list.append(fullpath)
     else:
         query_list.append(DEFAULT_QUERY)
+
     return query_list
 
 def collect_contents(query_item):
