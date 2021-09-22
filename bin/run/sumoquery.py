@@ -122,24 +122,24 @@ if ARGS.MY_APIKEY:
     os.environ['SUMO_UID'] = MY_APINAME
     os.environ['SUMO_KEY'] = MY_APISECRET
 
-if "aws:ssm:" in ARGS.MY_APIKEY:
-    VENDOR, METHOD, REGION, TOKENS = ARGS.MY_APIKEY.split(':')
-    if ARGS.VERBOSE > 7:
-        print('VENDOR: {}'.format(VENDOR))
-        print('METHOD: {}'.format(METHOD))
-        print('REGION: {}'.format(REGION))
-        print('TOKENS: {}'.format(TOKENS))
+    if "aws:ssm:" in ARGS.MY_APIKEY:
+        VENDOR, METHOD, REGION, TOKENS = ARGS.MY_APIKEY.split(':')
+        if ARGS.VERBOSE > 7:
+            print('VENDOR: {}'.format(VENDOR))
+            print('METHOD: {}'.format(METHOD))
+            print('REGION: {}'.format(REGION))
+            print('TOKENS: {}'.format(TOKENS))
 
-    ssmobject = boto3.client(METHOD, region_name=REGION)
-    ssmresponse = ssmobject.get_parameters(
-        Names=[ TOKENS ],
-        WithDecryption=True
-    )
+        ssmobject = boto3.client(METHOD, region_name=REGION)
+        ssmresponse = ssmobject.get_parameters(
+            Names=[ TOKENS ],
+            WithDecryption=True
+        )
 
-    TOKEN_CONTENTS = ssmresponse['Parameters'][0]['Value']
-    (MY_APINAME, MY_APISECRET) = TOKEN_CONTENTS.split(':')
-    os.environ['SUMO_UID'] = MY_APINAME
-    os.environ['SUMO_KEY'] = MY_APISECRET
+        TOKEN_CONTENTS = ssmresponse['Parameters'][0]['Value']
+        (MY_APINAME, MY_APISECRET) = TOKEN_CONTENTS.split(':')
+        os.environ['SUMO_UID'] = MY_APINAME
+        os.environ['SUMO_KEY'] = MY_APISECRET
 
 if ARGS.MY_ENDPOINT:
     os.environ['SUMO_END'] = ARGS.MY_ENDPOINT
