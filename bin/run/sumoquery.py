@@ -428,19 +428,24 @@ def build_assembled_output(apisession, query_jobid, num_records, iterations):
             my_offset = ( my_limit * my_counter )
 
             query_records = apisession.search_job_records(query_jobid, my_limit, my_offset)
-            # temp bugfix doing extra get
-            if len(query_records["records"]) > 0:
+            # code loops 1 time too many
+            if my_counter ==0:
+                records=extract_record_list(query_records["records"])
+            elif len(query_records["records"]) > 0:
                 records.append(extract_record_list(query_records["records"]))
 
             header,header_list = build_header(query_records)
             output = build_body(query_records,header_list)
             total_records = total_records + output
+            logger.debug('records1: {}'.format(records))
+
+        logger.debug('records: {}'.format(records))
         if ARGS.OUT_FORMAT == 'json':
             assembled_output = records
         else:
             assembled_output = EOL_SEP.join([ header, total_records ])
         
-        logger.debug('records: {}'.format(records))
+       
     
     return assembled_output
 
@@ -480,12 +485,12 @@ def extract_record_list(query_records):
     [{'map': {'_count': '13', '_sourcecategory': 'sourcehost_volume'}}]
     [{'_count': '13', '_sourcecategory': 'sourcehost_volume'}]
     """
-    record_list = list()
+    record_list = []
     for record in query_records:
         map_record = record["map"]
         logger.debug('map: {}'.format(map_record))
         record_list.append(map_record)
-
+    #logger.debug('map: {}'.format(record_list))
     return record_list
 
 ### class ###
