@@ -57,11 +57,9 @@ run_query is a Sumo Logic cli cmdlet managing queries
 PARSER.add_argument("-a", metavar='<secret>', dest='MY_APIKEY', \
                     help="set query authkey (format: <key>:<secret>) ")
 PARSER.add_argument("-e", metavar='<endpoint>', dest='MY_ENDPOINT', \
-                    help="set query endpoint (format: <dep>) ", \
-                        default='us2')
+                    help="set query endpoint (format: <dep>) ")
 PARSER.add_argument("-t", metavar='<targetorg>', dest='MY_TARGET', \
-                    action='append', help="set query target  (format: <dep>_<orgid>) ", \
-                        default='abc_123456789')
+                    action='append', help="set query target  (format: <dep>_<orgid>) ")
 PARSER.add_argument("-q", metavar='<query>', dest='MY_QUERY', help="set query content")
 PARSER.add_argument("-r", metavar='<range>', dest='MY_RANGE', default='1h', \
                     help="set query range")
@@ -252,7 +250,7 @@ def process_request(apisession, query_targets, query_list, time_params):
     for query_target in query_targets:
 
         querycounter = 1
-
+        logger.info('Processing query_target: {}'.format(query_target))
         jobholder = os.path.join( PENDING, query_target )
 
         for query_item in query_list:
@@ -261,6 +259,8 @@ def process_request(apisession, query_targets, query_list, time_params):
             if ARGS.VERBOSE > 7:
                 print('SUMOQUERY.query_item: {}'.format(query_item))
                 print('SUMOQUERY.query_data: {}'.format(query_data))
+            logger.debug('SUMOQUERY.query_data: {}'.format(query_data))
+            logger.debug('SUMOQUERY.query_item: {}'.format(query_item))
             header_output = run_sumo_query(apisession, query_data, time_params)
             write_query_output(header_output, query_target, querycounter)
             querycounter += 1
@@ -302,6 +302,7 @@ def write_query_output(header_output, query_target, query_number):
 
     if ARGS.VERBOSE > 3:
         print('SUMOQUERY.outputfile: {}'.format(output_target))
+    logger.debug('SUMOQUERY.outputfile: {}'.format(output_target))
 
     with open(output_target, "w") as file_object:
         file_object.write(header_output + '\n' )
@@ -312,6 +313,9 @@ def tailor_queries(query_item, query_target):
     This substitutes common parameters for values from the script.
     Later, this will be a data driven exercise.
     """
+    #logger.debug('query_item: {}'.format(query_item))
+    #logger.debug('query_target: {}'.format(query_target))
+    
     replacements = dict()
     replacements['{{deployment}}'] = query_target.split('_')[0]
     replacements['{{org_id}}'] = query_target.split('_')[1]
@@ -386,6 +390,7 @@ def run_sumo_query(apisession, query, time_params):
     query_jobid = query_job["id"]
     if ARGS.VERBOSE > 3:
         print('SUMOQUERY.jobid: {}'.format(query_jobid))
+    logger.info('SUMOQUERY.jobid: {}'.format(query_jobid))
 
     (query_status, num_messages, num_records, iterations) = apisession.search_job_tally(query_jobid)
     if ARGS.VERBOSE > 4:
@@ -393,6 +398,10 @@ def run_sumo_query(apisession, query, time_params):
         print('SUMOQUERY.records: {}'.format(num_records))
         print('SUMOQUERY.messages: {}'.format(num_messages))
         print('SUMOQUERY.iterations: {}'.format(iterations))
+    logger.debug('SUMOQUERY.status: {}'.format(query_status))
+    logger.debug('SUMOQUERY.records: {}'.format(num_records))
+    logger.debug('SUMOQUERY.messages: {}'.format(num_messages))
+    logger.debug('SUMOQUERY.iterations: {}'.format(iterations))
 
     assembled_output = build_assembled_output(apisession, query_jobid, num_records, iterations)
 
