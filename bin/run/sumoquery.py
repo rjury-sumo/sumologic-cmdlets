@@ -140,13 +140,7 @@ TARGETS = ARGS.MY_TARGET
 logger.debug('TARGET: {}'.format(TARGETS))
 
 if ARGS.MY_APIKEY:
-    (MY_APINAME, MY_APISECRET) = ARGS.MY_APIKEY.split(':')
-    os.environ['SUMO_UID'] = MY_APINAME
-    os.environ['SUMO_KEY'] = MY_APISECRET
-
     if "aws:ssm:" in ARGS.MY_APIKEY:
-        logger.info('Use SSM credentials...')
-
         VENDOR, METHOD, REGION, TOKENS = ARGS.MY_APIKEY.split(':')
         if ARGS.VERBOSE > 7:
             print('VENDOR: {}'.format(VENDOR))
@@ -159,11 +153,13 @@ if ARGS.MY_APIKEY:
             Names=[ TOKENS ],
             WithDecryption=True
         )
-
         TOKEN_CONTENTS = ssmresponse['Parameters'][0]['Value']
         (MY_APINAME, MY_APISECRET) = TOKEN_CONTENTS.split(':')
-        os.environ['SUMO_UID'] = MY_APINAME
-        os.environ['SUMO_KEY'] = MY_APISECRET
+    else:
+        (MY_APINAME, MY_APISECRET) = ARGS.MY_APIKEY.split(':')
+
+    os.environ['SUMO_UID'] = MY_APINAME
+    os.environ['SUMO_KEY'] = MY_APISECRET
 
 if ARGS.MY_ENDPOINT:
     os.environ['SUMO_END'] = ARGS.MY_ENDPOINT
@@ -363,6 +359,8 @@ def collect_queries():
                     if os.path.splitext(file)[1] == QUERY_EXT:
                         fullpath = os.path.join(root, file)
                         query_list.append(fullpath)
+        else:
+            query_list.append(ARGS.MY_QUERY)
     else:
         query_list.append(DEFAULT_QUERY)
 
