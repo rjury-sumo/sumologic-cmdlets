@@ -53,6 +53,8 @@ import requests
 import datetime
 import math
 
+kickoff_time=int(time.time())
+
 logging.basicConfig(
     format='%(asctime)s %(levelname)-8s %(message)s',
     level=logging.INFO,
@@ -117,6 +119,11 @@ if os.environ.get('DEFAULT_RANGE') is not None:
 else:
    time_range=ARGS.MY_RANGE
 
+if os.environ.get('TIMESTAMP_STRATEGY'):
+    ts_strategy=os.environ['TIMESTAMP_STRATEGY']
+else:
+    ts_strategy='timeslice'
+    
 SEC_M = 1000
 MIN_S = 60
 HOUR_M = 60
@@ -146,7 +153,7 @@ else:
     query_list=query
 
 MY_SLEEP = int(ARGS.SLEEPTIME)
-NOW_TIME = int(time.time()) * SEC_M
+NOW_TIME = kickoff_time * SEC_M
 
 TIME_TABLE = dict()
 TIME_TABLE["s"] = SEC_M
@@ -154,6 +161,7 @@ TIME_TABLE["m"] = TIME_TABLE["s"] * MIN_S
 TIME_TABLE["h"] = TIME_TABLE["m"] * HOUR_M
 TIME_TABLE["d"] = TIME_TABLE["h"] * DAY_H
 TIME_TABLE["w"] = TIME_TABLE["d"] * WEEK_D
+TIME_TABLE['script_start'] = NOW_TIME
 
 TIME_PARAMS = dict()
 
@@ -182,8 +190,17 @@ def post_event(event,endpoint=None, category=None, host=None, fields=None, compr
     result= requests.post(endpoint, data, headers=headers)
     return result
 
-def format_event(record):
-    record['timestamp'] =datetime.datetime.utcnow().strftime("%Y-%b-%dT%H:%M:%S+0000")
+def format_event(record,ts_strategy):
+    logger.debug('timestamp strategy is: {}'.format(ts_strategy))
+    # set default timestamp value
+    record['timestamp'] =TIME_TABLE['script_start']
+
+    if ts_strategy == 'now':
+        record['timestamp'] =TIME_TABLE['script_start']
+    elif ts_strategy == 'timeslice':
+        if record['_timeslice']:
+            record['timestamp'] = int(record['timestamp'])
+        
     return json.dumps(record)
 
 def main():
@@ -194,7 +211,7 @@ def main():
     time_params = calculate_range(ARGS.TIME_FLAG)
 
     logger.debug ("Time params: {}".format(time_params))
-    
+
     try:
         apisession = SumoApiClient(SUMO_UID, SUMO_KEY, SUMO_END)
 
@@ -204,8 +221,12 @@ def main():
     
     records = process_request(apisession, query_list, time_params)
 
+    logger.info('Posting to SUMO_URL. endpoint={endpoint} category={category} host={host} fields={fields}'.format(endpoint=endpoint,category=category,host=host,fields=fields))
+
     for r in records:
         result = post_event(r,endpoint,category,host,fields)
+
+    logger.info('Posting records completed')
 
 def process_request(apisession, query_list, time_params):
     """
@@ -271,7 +292,7 @@ def run_sumo_query(apisession, query, time_params):
     logger.debug('SUMOQUERY.iterations: {}'.format(iterations))
 
     assembled_output = build_assembled_output(apisession, query_jobid, num_records)
-
+    logger.info('Completed collecting results for query: {}'.format(query_jobid))
     return assembled_output
 
 def build_assembled_output(apisession, query_jobid, num_records):
