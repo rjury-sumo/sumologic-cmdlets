@@ -55,9 +55,11 @@ import math
 
 kickoff_time=int(time.time())
 
+LOGLEVEL = os.environ.get('LOGLEVEL', 'INFO').upper()
+
 logging.basicConfig(
     format='%(asctime)s %(levelname)-8s %(message)s',
-    level=logging.INFO,
+    level=LOGLEVEL,
     datefmt='%Y-%m-%d %H:%M:%S')
 
 logger = logging.getLogger()
@@ -72,7 +74,7 @@ if endpoint is None:
 if os.environ.get('SUMO_CATEGORY') is not None:
     category=os.environ['SUMO_CATEGORY']
 else:
-    category="test/sumopylogger/json"
+    category="test/sumoquerystream/json"
 
 if os.environ.get('SUMO_HOST') is not None:
     host=os.environ['SUMO_HOST']
@@ -123,7 +125,7 @@ if os.environ.get('TIMESTAMP_STRATEGY'):
     ts_strategy=os.environ['TIMESTAMP_STRATEGY']
 else:
     ts_strategy='timeslice'
-    
+
 SEC_M = 1000
 MIN_S = 60
 HOUR_M = 60
@@ -185,7 +187,7 @@ def post_event(event,endpoint=None, category=None, host=None, fields=None, compr
         headers["X-Sumo-Fields"] = fields
 
         # some code....
-    data = format_event(event)
+    data = format_event(event,ts_strategy)
 
     result= requests.post(endpoint, data, headers=headers)
     return result
@@ -199,7 +201,7 @@ def format_event(record,ts_strategy):
         record['timestamp'] =TIME_TABLE['script_start']
     elif ts_strategy == 'timeslice':
         if record['_timeslice']:
-            record['timestamp'] = int(record['timestamp'])
+            record['timestamp'] = int(record['_timeslice'])
         
     return json.dumps(record)
 
@@ -221,12 +223,13 @@ def main():
     
     records = process_request(apisession, query_list, time_params)
 
-    logger.info('Posting to SUMO_URL. endpoint={endpoint} category={category} host={host} fields={fields}'.format(endpoint=endpoint,category=category,host=host,fields=fields))
-
-    for r in records:
-        result = post_event(r,endpoint,category,host,fields)
-
-    logger.info('Posting records completed')
+    if len(records) > 0:
+        logger.info('Posting to SUMO_URL. endpoint={endpoint} category={category} host={host} fields={fields}'.format(endpoint=endpoint,category=category,host=host,fields=fields))
+        for r in records:
+            result = post_event(r,endpoint,category,host,fields)
+        logger.info('Posting {} records completed'.format(len(records)))
+    else:
+        logger.warning('query returned 0 records')
 
 def process_request(apisession, query_list, time_params):
     """
