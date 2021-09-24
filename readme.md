@@ -32,7 +32,34 @@ The steps are as follows:
        (this may take a while as this will download all of the libraries it uses):
 
         pipenv install
-        
+
+Using Docker Image With Sumoquerystream
+=======================================
+
+A dockerfile is supplied for the bin/run/sumoquerystream commandlet. This demonstrates how you can run a docker image to:
+- run a query vs a sumo instance
+- stream the resulting records to a SUMO HTTPS endpoint.
+
+Many of the required environment variables have example values set in the docker file.
+
+You can set the remaining ones on launch for example:
+```
+docker run -it -e SUMO_URL=$SUMO_URL -e SUMO_ACCESS_ID=$SUMO_ACCESS_ID -e SUMO_ACCESS_KEY=$SUMO_ACCESS_KEY sumologiccmdlets:latest
+```
+
+Example output
+```
+2021-09-23 23:53:52 INFO     SUMOQUERY.jobid: 7C28227835367525
+2021-09-23 23:53:55 INFO     total records collected for query: 5
+2021-09-23 23:53:55 INFO     Completed collecting results for query: 7C28227835367525
+2021-09-23 23:53:55 INFO     Posting to SUMO_URL. endpoint=https://collectors.au.sumologic.com/receiver/v1/http/aasldkjalkdfjaslfjd== category=test/sumoquerystream/json host=f7a8eebad0de fields=owner=none,service=none,application=none
+```
+
+Each column in the record output is posted to sumo as a json key in the payload for example:
+```
+{"_timeslice": "1632440700000", "bytes": "40588.0", "_sourcecategory": "aws/observability/cloudtrail/logs", "_collector": "aws-observability-sumotest-1231321323", "_source": "cloudtrail-logs-us-east-2", "events": "32", "timestamp": 1632441051000}
+```
+
 Dependencies
 ============
 
