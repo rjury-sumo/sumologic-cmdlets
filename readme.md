@@ -40,11 +40,11 @@ A dockerfile is supplied for the bin/run/sumoquerystream commandlet. This demons
 - run a query vs a sumo instance
 - stream the resulting records to a SUMO HTTPS endpoint.
 
-Many of the required environment variables have example values set in the docker file.
+Many of the required environment variables have example values set in the docker file. Container prebuilt at: https://hub.docker.com/repository/docker/rickjury/sumologic-cmdlets
 
 You can set the remaining ones on launch for example:
 ```
-docker run -it -e SUMO_URL=$SUMO_URL -e SUMO_ACCESS_ID=$SUMO_ACCESS_ID -e SUMO_ACCESS_KEY=$SUMO_ACCESS_KEY sumologiccmdlets:latest
+docker run -it -e SUMO_URL=$SUMO_URL -e SUMO_ACCESS_ID=$SUMO_ACCESS_ID -e SUMO_ACCESS_KEY=$SUMO_ACCESS_KEY rickjury/sumologic-cmdlets:latest
 ```
 
 Example output
