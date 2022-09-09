@@ -2,16 +2,16 @@
 # -*- coding: utf-8 -*-
 
 """
-Exaplanation: list_apps a cmdlet within the sumocli that retrieves information
+Exaplanation: this shows built in fields in a Sumo Logic environment
 
 Usage:
-   $ python  list_apps [ options ]
+   $ python  list_builtin_fields [ options ]
 
 Style:
    Google Python Style Guide:
    http://google.github.io/styleguide/pyguide.html
 
-    @name           sumocli_list_apps
+    @name           sumocli_list_builtin_fields
     @version        1.00
     @author-name    Wayne Schmidt
     @author-email   wschmidt@sumologic.com
@@ -33,7 +33,7 @@ sys.dont_write_bytecode = 1
 
 MY_CFG = 'undefined'
 PARSER = argparse.ArgumentParser(description="""
-list_apps is a Sumo Logic cli cmdlet retrieving information about apps
+list_fields is a Sumo Logic cli cmdlet retrieving information about fields
 """)
 
 PARSER.add_argument("-a", metavar='<secret>', dest='MY_SECRET', \
@@ -93,21 +93,20 @@ def run_sumo_cmdlet(source):
     This will collect the information on object for sumologic and then collect that into a list.
     the output of the action will provide a tuple of the orgid, objecttype, and id
     """
-    target_object = "apps"
+    target_object = "fields"
     target_dict = {}
     target_dict["orgid"] = SUMO_ORG
     target_dict[target_object] = {}
 
-    src_items = source.get_apps()
+    src_items = source.get_fields()
 
     for src_item in src_items:
-        if (str(src_item['appDefinition']['contentId']) == str(ARGS.myself) or ARGS.myself == 0):
-            my_data = src_item['appDefinition']['contentId']
-            target_dict[target_object][my_data] = {}
-            target_dict[target_object][my_data].update({'parent' : SUMO_ORG})
-            target_dict[target_object][my_data].update({'id' : my_data })
-            target_dict[target_object][my_data].update({'name' : src_item['appDefinition']['name']})
-            target_dict[target_object][my_data].update({'dump' : src_item})
+        if (str(src_item['fieldId']) == str(ARGS.myself) or ARGS.myself == 0):
+            target_dict[target_object][src_item['fieldId']] = {}
+            target_dict[target_object][src_item['fieldId']].update({'parent' : SUMO_ORG})
+            target_dict[target_object][src_item['fieldId']].update({'id' : src_item['fieldId']})
+            target_dict[target_object][src_item['fieldId']].update({'name' : src_item['fieldName']})
+            target_dict[target_object][src_item['fieldId']].update({'dump' : src_item})
 
     if ARGS.oformat == "sum":
         print(f'Orgid: {SUMO_ORG} {target_object} number: {len(target_dict[target_object])}')
@@ -205,21 +204,20 @@ class SumoApiClient():
 ### class ###
 ### methods ###
 
-    def get_apps(self):
+    def get_fields(self):
         """
-        Using an HTTP client, this uses a GET to retrieve all app information.
+        Using an HTTP client, this uses a GET to retrieve all fields information.
         """
-        url = "/v1/apps"
+        url = "/v1/fields/builtin"
         body = self.get(url).text
-        results = json.loads(body)['apps']
-        print(results)
+        results = json.loads(body)['data']
         return results
 
-    def get_app(self, myself):
+    def get_field(self, myself):
         """
-        Using an HTTP client, this uses a GET to retrieve single app information.
+        Using an HTTP client, this uses a GET to retrieve single field information.
         """
-        url = "/v1/apps/" + str(myself)
+        url = "/v1/fields/builtin" + str(myself)
         body = self.get(url).text
         results = json.loads(body)['data']
         return results

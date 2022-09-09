@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# pylint: disable=R0913
 
 """
 Exaplanation: detele_fer a sumocli cmdlet creating field extraction rules
@@ -15,7 +16,7 @@ Style:
     @version        1.00
     @author-name    Wayne Schmidt
     @author-email   wschmidt@sumologic.com
-    @license-name   GNU GPL
+    @license-name   Apache 2.0
     @license-url    http://www.gnu.org/licenses/gpl.html
 """
 
@@ -25,7 +26,6 @@ __author__ = "Wayne Schmidt (wschmidt@sumologic.com)"
 ### beginning ###
 import ast
 import json
-import pprint
 import os
 import sys
 import argparse
@@ -84,15 +84,12 @@ try:
     SUMO_KEY = os.environ['SUMO_KEY']
     SUMO_LOC = os.environ['SUMO_LOC']
     SUMO_ORG = os.environ['SUMO_ORG']
-    SUMO_END = os.environ['SUMO_END']
     MYSELFID = os.environ['MYSELFID']
 except KeyError as myerror:
-    print('Environment Variable Not Set :: {} '.format(myerror.args[0]))
-
-PP = pprint.PrettyPrinter(indent=4)
+    print(f'Environment Variable Not Set :: {myerror.args[0]}')
 
 BACKUP_DIR = '/var/tmp'
-BACKUP_FILE = SUMO_END + '_' + SUMO_ORG + '.' + MYSELFID + '.' + 'json'
+BACKUP_FILE = SUMO_LOC + '_' + SUMO_ORG + '.' + MYSELFID + '.' + 'json'
 BACKUP_TARGET = os.path.join(BACKUP_DIR, BACKUP_FILE)
 
 ### beginning ###
@@ -101,7 +98,7 @@ def main():
     Setup the Sumo API connection, using the required tuple of region, id, and key.
     Once done, then issue the command required
     """
-    source = SumoApiClient(SUMO_UID, SUMO_KEY, SUMO_END)
+    source = SumoApiClient(SUMO_UID, SUMO_KEY)
     run_sumo_cmdlet(source)
 
 def run_sumo_cmdlet(source):
@@ -110,47 +107,65 @@ def run_sumo_cmdlet(source):
     the output of the action will provide a tuple of the orgid, objecttype, and id
     """
     target_object = "source"
-    target_dict = dict()
+    target_dict = {}
     target_dict["orgid"] = SUMO_ORG
-    target_dict[target_object] = dict()
+    target_dict[target_object] = {}
 
     src_item = source.get_fer(MYSELFID)
     if str(src_item['id']) == str(MYSELFID):
-        target_dict[src_item['id']] = dict()
+        target_dict[src_item['id']] = {}
         target_dict[src_item['id']].update({'parent' : SUMO_ORG})
         target_dict[src_item['id']].update({'id' : src_item['id']})
         target_dict[src_item['id']].update({'name' : src_item['name']})
         target_dict[src_item['id']].update({'dump' : src_item})
 
-    with open(BACKUP_TARGET, 'w') as outputobject:
+    with open(BACKUP_TARGET, 'w', encoding='utf8') as outputobject:
         outputobject.write(json.dumps(target_dict, indent=4))
 
     _results = source.delete_fer(MYSELFID)
 
-#### class ###
+### class ###
 class SumoApiClient():
     """
     This is defined SumoLogic API Client
     The class includes the HTTP methods, cmdlets, and init methods
     """
 
-    def __init__(self, access_id, access_key, region, cookieFile='cookies.txt'):
+    def __init__(self, access_id, access_key, endpoint=None, cookie_file='cookies.txt'):
         """
         Initializes the Sumo Logic object
         """
+
         self.session = requests.Session()
         self.session.auth = (access_id, access_key)
         self.session.headers = {'content-type': 'application/json', \
             'accept': 'application/json'}
-        self.apipoint = 'https://api.' + region + '.sumologic.com/api'
-        cookiejar = http.cookiejar.FileCookieJar(cookieFile)
+        cookiejar = http.cookiejar.FileCookieJar(cookie_file)
         self.session.cookies = cookiejar
+        if endpoint is None:
+            self.endpoint = self._get_endpoint()
+        elif len(endpoint) < 3:
+            self.endpoint = 'https://api.' + endpoint + '.sumologic.com/api'
+        else:
+            self.endpoint = endpoint
+        if self.endpoint[-1:] == "/":
+            raise Exception("Endpoint should not end with a slash character")
+
+    def _get_endpoint(self):
+        """
+        SumoLogic REST API endpoint changes based on the geo location of the client.
+        It contacts the default REST endpoint and resolves the 401 to get the right endpoint.
+        """
+        self.endpoint = 'https://api.sumologic.com/api'
+        self.response = self.session.get('https://api.sumologic.com/api/v1/collectors')
+        endpoint = self.response.url.replace('/v1/collectors', '')
+        return endpoint
 
     def delete(self, method, params=None, headers=None, data=None):
         """
         Defines a Sumo Logic Delete operation
         """
-        response = self.session.delete(self.apipoint + method, \
+        response = self.session.delete(self.endpoint + method, \
             params=params, headers=headers, data=data)
         if response.status_code != 200:
             response.reason = response.text
@@ -161,7 +176,7 @@ class SumoApiClient():
         """
         Defines a Sumo Logic Get operation
         """
-        response = self.session.get(self.apipoint + method, \
+        response = self.session.get(self.endpoint + method, \
             params=params, headers=headers)
         if response.status_code != 200:
             response.reason = response.text
@@ -172,7 +187,7 @@ class SumoApiClient():
         """
         Defines a Sumo Logic Post operation
         """
-        response = self.session.post(self.apipoint + method, \
+        response = self.session.post(self.endpoint + method, \
             data=json.dumps(data), headers=headers, params=params)
         if response.status_code != 200:
             response.reason = response.text
@@ -183,7 +198,7 @@ class SumoApiClient():
         """
         Defines a Sumo Logic Put operation
         """
-        response = self.session.put(self.apipoint + method, \
+        response = self.session.put(self.endpoint + method, \
             data=json.dumps(data), headers=headers, params=params)
         if response.status_code != 200:
             response.reason = response.text
@@ -195,21 +210,27 @@ class SumoApiClient():
 ### methods ###
 
     def get_fers(self, limit=1000, token=''):
+        """
+        lists all Field Extraction Rules (FER)
+        """
         params = {'limit': limit, 'token': token}
-        r = self.get('/v1/extractionRules', params=params)
-        return json.loads(r.text)
+        response = self.get('/v1/extractionRules', params=params)
+        return json.loads(response.text)
 
     def create_fer(self, fer_name, fer_scope, fer_parse_expression, fer_enabled=False):
+        """
+        create a specific FER
+        """
         object_type = 'fer'
         jsonpayload = {
-            'name': object_type + 'OBJECT_NAME', 
-            'scope': object_type + '_' 'data_source', 
-            'parseExpression': 'parse "*" as my_payload', 
+            'name': object_type + '_' + fer_name,
+            'scope': object_type + '_' + fer_scope,
+            'parseExpression': fer_parse_expression,
             'enabled': fer_enabled
         }
         if ARGS.jsonfile:
-            fileobject = open(ARGS.jsonfile, "r")
-            jsonpayload = ast.literal_eval((fileobject.read()))
+            with open(ARGS.jsonfile, "r", encoding='utf8') as fileobject:
+                jsonpayload = ast.literal_eval((fileobject.read()))
 
         if ARGS.verbose:
             print(jsonpayload)
@@ -228,15 +249,29 @@ class SumoApiClient():
         return results
 
     def get_fer(self, item_id):
-        r = self.get('/v1/extractionRules/' + str(item_id))
-        return json.loads(r.text)
+        """
+        get details on a specific FER
+        """
+        response = self.get('/v1/extractionRules/' + str(item_id))
+        return json.loads(response.text)
 
-    def update_fer(self, item_id, name, scope, parse_expression, enabled=False):
-        data = {'name': name, 'scope': scope, 'parseExpression': parse_expression, 'enabled': str(enabled).lower()}
-        r = self.put('/v1/extractionRules/' + str(item_id), data)
-        return json.loads(r.text)
+    def update_fer(self, item_id, fer_name, fer_scope, fer_parse, enabled=False):
+        """
+        update details on a specific FER
+        """
+        data = {
+                   'name': fer_name,
+                   'scope': fer_scope,
+                   'parseExpression': fer_parse,
+                   'enabled': str(enabled).lower()
+               }
+        response = self.put('/v1/extractionRules/' + str(item_id), data)
+        return json.loads(response.text)
 
     def delete_fer(self, myselfid):
+        """
+        delete a specific FER
+        """
         url = "/v1/extractionRules/" + str(myselfid)
         results = self.delete(url).text
         return results

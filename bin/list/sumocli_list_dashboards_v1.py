@@ -2,16 +2,16 @@
 # -*- coding: utf-8 -*-
 
 """
-Exaplanation: list_apps a cmdlet within the sumocli that retrieves information
+Exaplanation: list_dashboards a cmdlet within the sumocli that retrieves information
 
 Usage:
-   $ python  list_apps [ options ]
+   $ python  list_dashboards [ options ]
 
 Style:
    Google Python Style Guide:
    http://google.github.io/styleguide/pyguide.html
 
-    @name           sumocli_list_apps
+    @name           sumocli_list_dashboards
     @version        1.00
     @author-name    Wayne Schmidt
     @author-email   wschmidt@sumologic.com
@@ -33,8 +33,9 @@ sys.dont_write_bytecode = 1
 
 MY_CFG = 'undefined'
 PARSER = argparse.ArgumentParser(description="""
-list_apps is a Sumo Logic cli cmdlet retrieving information about apps
+list_dashboards is a Sumo Logic cli cmdlet retrieving information about dashboards
 """)
+
 
 PARSER.add_argument("-a", metavar='<secret>', dest='MY_SECRET', \
                     help="set api (format: <key>:<secret>) ")
@@ -42,16 +43,10 @@ PARSER.add_argument("-k", metavar='<client>', dest='MY_CLIENT', \
                     help="set key (format: <site>_<orgid>) ")
 PARSER.add_argument("-e", metavar='<endpoint>', dest='MY_ENDPOINT', \
                     help="set endpoint (format: <endpoint>) ")
-PARSER.add_argument("-f", metavar='<fmt>', default="list", dest='oformat', \
-                    help="Specify output format (default = list )")
 PARSER.add_argument("-m", default=0, metavar='<myself>', \
                     dest='myself', help="provide specific id to lookup")
-PARSER.add_argument("-p", default=0, metavar='<parent>', \
-                    dest='parentid', help="provide parent id to locate with")
 PARSER.add_argument("-v", type=int, default=0, metavar='<verbose>', \
                     dest='verbose', help="Increase verbosity")
-PARSER.add_argument("-n", "--noexec", action='store_true', \
-                    help="Print but do not execute commands")
 
 ARGS = PARSER.parse_args()
 
@@ -93,33 +88,17 @@ def run_sumo_cmdlet(source):
     This will collect the information on object for sumologic and then collect that into a list.
     the output of the action will provide a tuple of the orgid, objecttype, and id
     """
-    target_object = "apps"
-    target_dict = {}
-    target_dict["orgid"] = SUMO_ORG
-    target_dict[target_object] = {}
 
-    src_items = source.get_apps()
-
-    for src_item in src_items:
-        if (str(src_item['appDefinition']['contentId']) == str(ARGS.myself) or ARGS.myself == 0):
-            my_data = src_item['appDefinition']['contentId']
-            target_dict[target_object][my_data] = {}
-            target_dict[target_object][my_data].update({'parent' : SUMO_ORG})
-            target_dict[target_object][my_data].update({'id' : my_data })
-            target_dict[target_object][my_data].update({'name' : src_item['appDefinition']['name']})
-            target_dict[target_object][my_data].update({'dump' : src_item})
-
-    if ARGS.oformat == "sum":
-        print(f'Orgid: {SUMO_ORG} {target_object} number: {len(target_dict[target_object])}')
-
-    if ARGS.oformat == "list":
-        for key in sorted(target_dict[target_object].keys()):
-            c_name = target_dict[target_object][key]['name']
-            c_id = target_dict[target_object][key]['id']
-            print(f'{SUMO_ORG},{target_object},{c_name},{c_id}')
-
-    if ARGS.oformat == "json":
-        print(json.dumps(target_dict, indent=4))
+    print("dashboard_id,dashboard_name,panel_id,panel_name")
+    src_items = source.get_dashboard(ARGS.myself)
+    for src_item in src_items["dashboards"]:
+        d_id = src_item["id"]
+        d_name = src_item["title"]
+        if "dashboardMonitors" in src_item:
+            for panel_item in src_item["dashboardMonitors"]:
+                p_id = panel_item["id"]
+                p_name = panel_item["title"]
+                print(f'{d_id},{d_name},{p_id},{p_name}')
 
 ### class ###
 class SumoApiClient():
@@ -202,28 +181,20 @@ class SumoApiClient():
         response.raise_for_status()
         return response
 
-### class ###
+#### class ###
 ### methods ###
 
-    def get_apps(self):
+    def get_dashboard(self):
         """
-        Using an HTTP client, this uses a GET to retrieve all app information.
+        Using an HTTP client, this uses a GET to retrieve single dashboard information.
         """
-        url = "/v1/apps"
+        ### params = {'monitors': monitors}
+        url = "/v1/dashboards"
         body = self.get(url).text
-        results = json.loads(body)['apps']
-        print(results)
-        return results
-
-    def get_app(self, myself):
-        """
-        Using an HTTP client, this uses a GET to retrieve single app information.
-        """
-        url = "/v1/apps/" + str(myself)
-        body = self.get(url).text
-        results = json.loads(body)['data']
+        results = json.loads(body)
         return results
 
 ### methods ###
+
 if __name__ == '__main__':
     main()
